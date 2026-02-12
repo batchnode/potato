@@ -27,7 +27,7 @@ You need a **Fine-grained Personal Access Token (PAT)** so the CMS can write to 
 ### 3. Deploy to Cloudflare Pages
 1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com).
 2. Go to **Workers & Pages > Create > Pages > Connect to Git**.
-3. Select your forked `nexus-cms` repository.
+3. Select your forked `potato` repository.
 4. **Build settings**:
    - **Framework preset**: `Vite`
    - **Build command**: `npm run build`
@@ -54,6 +54,7 @@ Potato uses Cloudflare KV to store your configuration and sessions.
    - Create your **Administrator** account.
    - Enter your **GitHub PAT** from Step 2.
    - Link your **Content Repository** (where your blog posts live).
+   - Select Branch and the posts and images directories.
 
 ---
 
