@@ -1,0 +1,84 @@
+name: Convert Images to WebP
+on:
+  workflow_dispatch:
+    inputs:
+      assets_dir:
+        description: 'Directory to scan for images'
+        required: true
+        default: 'assets'
+
+permissions:  
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install WebP Tools
+        run: sudo apt-get install webp -y
+
+      - name: Convert Images and Update Links
+        run: |
+          DIRECTORY="${{ github.event.inputs.assets_dir }}"
+          echo "Scanning directory: $DIRECTORY"
+          
+          SUCCESS_COUNT=0
+          FAILED_COUNT=0
+          FAILED_FILES=""
+          
+          # Use find with -print0 to handle spaces and special characters safely
+          find "$DIRECTORY" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) -print0 > image_list.txt
+          
+          while IFS= read -r -d '' img; do
+            filename=$(basename -- "$img")
+            basename="${filename%.*}"
+            dirname=$(dirname -- "$img")
+            webp_path="$dirname/$basename.webp"
+            
+            echo "Processing: $img"
+            
+            # Convert to WebP
+            if cwebp -q 80 "$img" -o "$webp_path"; then
+              echo "Successfully converted $img to $webp_path"
+              
+              # Update links in all markdown files
+              # Use a safer sed approach for the specific filename
+              new_filename="$basename.webp"
+              echo "Updating links from $filename to $new_filename"
+              find . -type f -name "*.md" -exec sed -i "s/$filename/$new_filename/g" {} +
+              
+              # Remove original only on success
+              rm "$img"
+              SUCCESS_COUNT=$((SUCCESS_COUNT+1))
+            else
+              echo "::error::Failed to convert $img"
+              FAILED_COUNT=$((FAILED_COUNT+1))
+              FAILED_FILES="$FAILED_FILES\n- $img"
+            fi
+          done < image_list.txt
+          
+          rm image_list.txt
+
+          echo "SUMMARY_SUCCESS=$SUCCESS_COUNT" >> $GITHUB_ENV
+          echo "SUMMARY_FAILED=$FAILED_COUNT" >> $GITHUB_ENV
+          
+          echo "### WebP Conversion Result" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Success:** $SUCCESS_COUNT images" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Failed:** $FAILED_COUNT images" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $FAILED_COUNT -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Failed Files:" >> $GITHUB_STEP_SUMMARY
+            echo -e "$FAILED_FILES" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Optimize: Convert images to WebP (Success: ${{ env.SUMMARY_SUCCESS }}, Failed: ${{ env.SUMMARY_FAILED }})"
+          file_pattern: '*'
